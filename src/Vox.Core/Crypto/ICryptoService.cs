@@ -11,7 +11,7 @@ public interface ICryptoService
     byte[] Encrypt(ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> key);
     byte[] Decrypt(ReadOnlySpan<byte> ciphertext, ReadOnlySpan<byte> key);
 
-    // --- Asymmetric box (X25519 + XSalsa20-Poly1305) ---
+    // --- Asymmetric box (X25519 DH + XChaCha20-Poly1305) ---
 
     byte[] Box(ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> recipientPublicKey, ReadOnlySpan<byte> senderPrivateKey);
     byte[] BoxOpen(ReadOnlySpan<byte> ciphertext, ReadOnlySpan<byte> senderPublicKey, ReadOnlySpan<byte> recipientPrivateKey);

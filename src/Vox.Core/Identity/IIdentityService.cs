@@ -4,8 +4,10 @@ public interface IIdentityService
 {
     /// <summary>
     /// Load existing identity from disk or create a new one.
+    /// When <paramref name="password"/> is provided, private keys are encrypted at rest using Argon2id.
+    /// Without a password, private keys are stored in plaintext.
     /// </summary>
-    LocalIdentity GetOrCreateIdentity(string username);
+    LocalIdentity GetOrCreateIdentity(string username, string? password = null);
 
     /// <summary>
     /// Sign data with the local identity's Ed25519 private key.
