@@ -19,6 +19,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Geralt" Version="3.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Vox.Core\Vox.Core.csproj" />
     <ProjectReference Include="..\..\src\Vox.Chat\Vox.Chat.csproj" />
   </ItemGroup>
