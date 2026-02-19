@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Vox.Chat/Vox.Chat.csproj" />
+    <Project Path="src/Vox.Core/Vox.Core.csproj" />
+    <Project Path="src/Vox.Network/Vox.Network.csproj" />
+    <Project Path="src/Vox.Voice/Vox.Voice.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Vox.Chat.Tests/Vox.Chat.Tests.csproj" />
+    <Project Path="tests/Vox.Core.Tests/Vox.Core.Tests.csproj" />
+    <Project Path="tests/Vox.Integration.Tests/Vox.Integration.Tests.csproj" />
+    <Project Path="tests/Vox.Network.Tests/Vox.Network.Tests.csproj" />
+    <Project Path="tests/Vox.Voice.Tests/Vox.Voice.Tests.csproj" />
+  </Folder>
+  <Project Path="Vox.csproj" />
+</Solution>
