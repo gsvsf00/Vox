@@ -23,7 +23,7 @@
 - Identity signing: Ed25519
 - Key exchange/encryption helper: X25519
 - Invite capsule encryption: XChaCha20-Poly1305 (32B key, 24B nonce)
-- Knock packet encryption: crypto_box-style (X25519 + XSalsa20-Poly1305) OR equivalent sealed-box using bootstrap WG pubkey.
+- Knock packet encryption: crypto_box-style (X25519 DH + XChaCha20-Poly1305) using WG keypairs.
 - WireGuard handshake: Noise_IKpsk2 w/ group PSK binding (PSK = group symmetric key).
 
 ## 3. URL / Invite format
@@ -102,8 +102,11 @@ Fields:
 - timestamp_ms: 8B (int64 LE)
 - identity_signature: 64B (Ed25519 signature over all preceding fields)
 
-Encryption:
-- sealed to bootstrap WG pubkey using joiner WG privkey (crypto_box semantics).
+Encryption (wire format):
+- joiner_wg_pubkey(32 bytes, cleartext) ‖ Box(knock_plaintext, bootstrap_wg_pub, joiner_wg_priv)
+- The 32-byte joiner WG pubkey is sent in cleartext as a prefix so the bootstrap
+  can perform the X25519 DH to decrypt the rest. This key is ephemeral per session.
+- Box = X25519 DH shared secret → XChaCha20-Poly1305 (nonce ‖ ciphertext ‖ tag).
 Replay protection:
 - receiver MUST reject if timestamp outside ±30s window.
 
@@ -124,8 +127,11 @@ Fields:
 - challenge: 32B random
 - bootstrap_identity_signature: 64B (over all preceding fields)
 
-Encryption:
-- sealed to joiner WG pubkey using bootstrap WG privkey (crypto_box semantics).
+Encryption (wire format):
+- Box(accept_plaintext, joiner_wg_pub, bootstrap_wg_priv)
+- The bootstrap already knows the joiner's WG pubkey from the decrypted knock,
+  so no cleartext prefix is needed.
+- Box = X25519 DH shared secret → XChaCha20-Poly1305 (nonce ‖ ciphertext ‖ tag).
 
 ### 5.3 WireGuard handshake (Noise_IKpsk2)
 - After KnockAccept, both sides run standard WireGuard handshake.

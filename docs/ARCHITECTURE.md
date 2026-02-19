@@ -139,7 +139,7 @@ Vox.Core (zero external dependencies)
 
 | Module | Responsibility | May Depend On |
 |---|---|---|
-| **Vox.Core** | Identity, cryptography, packet definitions, serialization, group state types, event model, configuration. Zero platform dependencies. | libsodium (via P/Invoke) |
+| **Vox.Core** | Identity, cryptography, packet definitions, serialization, group state types, event model, configuration. Zero platform dependencies. | Geralt (libsodium wrapper via NuGet) |
 | **Vox.Network** | WireGuard-compatible handshake (Noise_IKpsk2), knock protocol, WebRTC session management, ICE/STUN, mesh routing engine, transport abstraction, NAT traversal. | Vox.Core |
 | **Vox.Voice** | Audio capture, Opus encode/decode, RNNoise suppression, jitter buffer, audio mixing, playback, push-to-talk gating, mic device selection. | Vox.Core, Vox.Network (for sending/receiving frames) |
 | **Vox.Chat** | Message creation, ordering, deduplication, history storage (local SQLite), message signing and verification. | Vox.Core, Vox.Network (transport) |
@@ -172,7 +172,7 @@ Username#1234
 | Key | Algorithm | Size | Purpose |
 |---|---|---|---|
 | Identity signing key | Ed25519 | 32B pub / 64B priv | Sign all protocol messages, prove identity |
-| Identity encryption key | X25519 (derived from Ed25519) | 32B | Encrypt peer-to-peer payloads during knock |
+| Identity encryption key | X25519 (separate keypair) | 32B pub / 32B priv | Encrypt peer-to-peer payloads during knock |
 | WireGuard key | X25519 | 32B pub / 32B priv | WireGuard Noise handshake, separate from identity | 
 
 The identity signing key is the canonical peer identity. The WireGuard key is ephemeral per-session (regenerated on each app start) to provide forward secrecy for the transport layer. The identity key is long-lived and stored encrypted at rest.
@@ -181,9 +181,13 @@ The identity signing key is the canonical peer identity. The WireGuard key is ep
 
 ```
 %APPDATA%/Vox/identity/
-├── identity.key          # Ed25519 private key, encrypted with passphrase via XChaCha20-Poly1305
-├── identity.pub          # Ed25519 public key, plaintext
-├── profile.json          # { username, discriminator, created_at }
+├── profile.json          # { username, discriminator, created_at, signing_pub, encryption_pub, password_protected }
+├── identity.key          # Private keys (Ed25519 64B + X25519 32B = 96B blob)
+│                         #   If password_protected:
+│                         #     salt(16B) ‖ XChaCha20-Poly1305(96B keys, Argon2id(password, salt))
+│                         #     Argon2id params: 3 iterations, 64 MiB
+│                         #   If no password:
+│                         #     Raw 96 bytes (plaintext). Caller relies on OS-level protection.
 └── groups/
     ├── <group-id-hex>/
     │   ├── group.key     # Group symmetric key, encrypted with identity key
@@ -195,15 +199,16 @@ The identity signing key is the canonical peer identity. The WireGuard key is ep
 ### 4.3 Identity Derivation
 
 ```
-seed (32 random bytes, generated once)
-  │
-  ├─► Ed25519 keypair (identity)
-  │     └─► X25519 keypair (derived, for encryption)
-  │
-  └─► WireGuard X25519 keypair (separate derivation, per-session)
+Identity creation:
+  ├─► Ed25519 keypair (long-lived identity, for signing)
+  ├─► X25519 keypair  (long-lived, separately generated, for encryption)
+  └─► Both private keys stored in identity.key (96 bytes total)
+
+Per-session:
+  └─► WireGuard X25519 keypair (ephemeral, regenerated each app start)
 ```
 
-The identity seed is the root secret. Losing it means losing the identity. No recovery mechanism exists (by design — no central authority).
+The Ed25519 and X25519 keypairs are independently generated (not derived from a common seed). The private keys are the root secret. Losing them means losing the identity. No recovery mechanism exists (by design — no central authority).
 
 ---
 
@@ -305,7 +310,7 @@ The connection establishment has four phases:
 
 ### 6.2 Phase 1: Knock
 
-The knock is a single UDP packet sent to the bootstrap peer's endpoint. It is encrypted using NaCl `crypto_box` (X25519 + XSalsa20-Poly1305) to the bootstrap peer's WireGuard public key.
+The knock is a single UDP packet sent to the bootstrap peer's endpoint. It is encrypted using a `crypto_box`-style construction (X25519 DH + XChaCha20-Poly1305) to the bootstrap peer's WireGuard public key.
 
 **Knock packet (before encryption):**
 
@@ -322,7 +327,11 @@ The knock is a single UDP packet sent to the bootstrap peer's endpoint. It is en
 | `timestamp` | 8B | Unix milliseconds — must be within ±30s of receiver's clock |
 | `identity_signature` | 64B | Ed25519 signature over all preceding fields |
 
-**Encrypted with:** `crypto_box(message, nonce, bootstrap_wg_pubkey, joiner_wg_privkey)`
+**Wire format:** `joiner_wg_pubkey(32 bytes, cleartext) ‖ Box(knock_plaintext, bootstrap_wg_pubkey, joiner_wg_privkey)`
+
+The 32-byte joiner WG public key is sent as a cleartext prefix so the bootstrap can perform the X25519 Diffie-Hellman to decrypt the rest. This key is ephemeral per session.
+
+Box = `nonce(24B) ‖ XChaCha20-Poly1305(plaintext, X25519(joiner_wg_priv, bootstrap_wg_pub))`
 
 The bootstrap peer's WireGuard public key is obtained from the `ep` hint in the invite URL, paired with the bootstrap public key embedded in the capsule. Since the joiner can't decrypt the capsule, the bootstrap WireGuard public key is also included as a URL parameter:
 
@@ -345,13 +354,15 @@ The bootstrap peer:
 | Field | Size | Description |
 |---|---|---|
 | `protocol_magic` | 4B | `0x564F5802` ("VOX\x02") |
-| `status` | 1B | 0=accepted, 1=invalid_capsule, 2=expired, 3=password_wrong, 4=group_full |
+| `status` | 1B | 0=accepted, 1=invalid_capsule, 2=expired, 3=password_wrong, 4=group_full, 5=rate_limited |
 | `bootstrap_wg_pubkey` | 32B | Confirming the bootstrap's WG key |
 | `wg_listen_port` | 2B | Port for WireGuard handshake |
 | `challenge` | 32B | Random challenge for liveness proof |
 | `signature` | 64B | Bootstrap peer's Ed25519 identity signature |
 
-**Encrypted with:** `crypto_box(message, nonce, joiner_wg_pubkey, bootstrap_wg_privkey)`
+**Wire format:** `Box(accept_plaintext, joiner_wg_pubkey, bootstrap_wg_privkey)` — no cleartext prefix needed since the bootstrap already knows the joiner's WG pubkey from the decrypted knock.
+
+Box = `nonce(24B) ‖ XChaCha20-Poly1305(plaintext, X25519(bootstrap_wg_priv, joiner_wg_pub))`
 
 ### 6.4 Phase 3: WireGuard Handshake
 
@@ -1039,15 +1050,15 @@ public readonly record struct GroupId(byte[] Id)
     public string ToHex() => Convert.ToHexString(Id);
 }
 
-public sealed record LocalIdentity(
-    string Username,
-    ushort Discriminator,
-    byte[] SigningPublicKey,    // Ed25519 — 32 bytes
-    byte[] SigningPrivateKey,   // Ed25519 — 64 bytes
-    byte[] EncryptionPublicKey, // X25519  — 32 bytes
-    byte[] EncryptionPrivateKey // X25519  — 32 bytes
-)
+public sealed class LocalIdentity
 {
+    public required string Username { get; init; }
+    public required ushort Discriminator { get; init; }
+    public required byte[] SigningPublicKey { get; init; }    // Ed25519 — 32 bytes
+    public required byte[] SigningPrivateKey { get; init; }   // Ed25519 — 64 bytes
+    public required byte[] EncryptionPublicKey { get; init; } // X25519  — 32 bytes
+    public required byte[] EncryptionPrivateKey { get; init; } // X25519  — 32 bytes
+    public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
     public PeerId PeerId => new(SigningPublicKey);
     public string DisplayName => $"{Username}#{Discriminator:D4}";
 }
@@ -1127,7 +1138,7 @@ namespace Vox.Core.Abstractions;
 
 public interface IIdentityService
 {
-    LocalIdentity GetOrCreateIdentity();
+    LocalIdentity GetOrCreateIdentity(string username, string? password = null);
     byte[] Sign(ReadOnlySpan<byte> data);
     bool Verify(ReadOnlySpan<byte> publicKey, ReadOnlySpan<byte> data, ReadOnlySpan<byte> signature);
 }
@@ -1140,9 +1151,13 @@ public interface ICryptoService
     byte[] Decrypt(ReadOnlySpan<byte> ciphertext, ReadOnlySpan<byte> key);
     byte[] Box(ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> recipientPublicKey, ReadOnlySpan<byte> senderPrivateKey);
     byte[] BoxOpen(ReadOnlySpan<byte> ciphertext, ReadOnlySpan<byte> senderPublicKey, ReadOnlySpan<byte> recipientPrivateKey);
-    byte[] Hash(ReadOnlySpan<byte> data); // BLAKE2b
+    byte[] Sign(ReadOnlySpan<byte> data, ReadOnlySpan<byte> privateKey);
+    bool Verify(ReadOnlySpan<byte> data, ReadOnlySpan<byte> signature, ReadOnlySpan<byte> publicKey);
+    byte[] Hash(ReadOnlySpan<byte> data, int outputLength = 32); // BLAKE2b
     (byte[] PublicKey, byte[] PrivateKey) GenerateEd25519Keypair();
     (byte[] PublicKey, byte[] PrivateKey) GenerateX25519Keypair();
+    byte[] GenerateSymmetricKey(int length = 32);
+    byte[] GenerateRandomBytes(int length);
 }
 
 // === Group Service ===
@@ -1244,9 +1259,9 @@ public sealed record VoiceSessionConfig(
 
 public interface IWireGuardService
 {
-    Task<KnockResult> SendKnockAsync(IPEndPoint endpoint, byte[] bootstrapWgPubKey, byte[] capsule, string? password);
+    Task<KnockResult> SendKnockAsync(IPEndPoint endpoint, byte[] bootstrapWgPubKey, byte[] capsule, string? password, CancellationToken ct = default);
     void ListenForKnocks(int port, Func<KnockRequest, Task<KnockResponse>> handler);
-    Task<WireGuardTunnel> EstablishTunnelAsync(byte[] peerWgPubKey, IPEndPoint peerEndpoint, byte[] psk);
+    Task<WireGuardTunnel> EstablishTunnelAsync(byte[] peerWgPubKey, IPEndPoint peerEndpoint, byte[] psk, CancellationToken ct = default);
     void StopListening();
 }
 
@@ -1263,18 +1278,21 @@ public sealed record KnockRequest(
     byte[] JoinerIdentityPubKey,
     byte[] Capsule,
     string? Password,
-    long Timestamp,
+    long TimestampMs,
     byte[] Signature,
     IPEndPoint RemoteEndpoint
 );
 
-public sealed record WireGuardTunnel(
-    PeerId RemotePeerId,
-    byte[] RemoteWgPubKey,
-    IPEndPoint RemoteEndpoint,
-    Stream ReadStream,
-    Stream WriteStream
-) : IAsyncDisposable;
+public sealed record KnockResponse(bool Accepted, byte StatusCode);
+
+public sealed class WireGuardTunnel : IAsyncDisposable
+{
+    public required byte[] RemoteWgPubKey { get; init; }
+    public required IPEndPoint RemoteEndpoint { get; init; }
+    public required Stream ReadStream { get; init; }
+    public required Stream WriteStream { get; init; }
+    public ValueTask DisposeAsync() { ... }
+}
 
 // === Chat Service ===
 
@@ -1372,12 +1390,12 @@ Vox/
 │   │   │   ├── LocalIdentity.cs
 │   │   │   ├── PeerId.cs
 │   │   │   ├── IIdentityService.cs
-│   │   │   └── IdentityService.cs
+│   │   │   ├── IIdentityStore.cs
+│   │   │   ├── IdentityService.cs
+│   │   │   └── FileIdentityStore.cs    # Argon2id password-based encryption
 │   │   ├── Crypto/
 │   │   │   ├── ICryptoService.cs
-│   │   │   ├── LibsodiumCryptoService.cs
-│   │   │   └── Interop/
-│   │   │       └── Libsodium.cs        # P/Invoke declarations
+│   │   │   └── LibsodiumCryptoService.cs   # Uses Geralt NuGet (libsodium wrapper)
 │   │   ├── Protocol/
 │   │   │   ├── PacketTypes.cs           # Enum + constants
 │   │   │   ├── CommonHeader.cs
@@ -1403,17 +1421,16 @@ Vox/
 │   │   │   ├── GroupEventTypes.cs
 │   │   │   └── LamportClock.cs
 │   │   └── Configuration/
-│   │       └── VoxConfig.cs
+│   │       └── VoxDefaults.cs           # All protocol constants and defaults
 │   │
 │   ├── Vox.Network/                   # Networking library
 │   │   ├── Vox.Network.csproj
 │   │   ├── WireGuard/
 │   │   │   ├── IWireGuardService.cs
 │   │   │   ├── WireGuardService.cs
-│   │   │   ├── KnockProtocol.cs
-│   │   │   ├── KnockListener.cs
-│   │   │   └── Interop/
-│   │   │       └── Boringtun.cs        # P/Invoke to boringtun
+│   │   │   ├── KnockPacket.cs          # Binary serialization for Knock/KnockAccept
+│   │   │   ├── KnockProtocol.cs        # Encryption/decryption layer
+│   │   │   └── KnockListener.cs        # UDP async receive loop
 │   │   ├── WebRtc/
 │   │   │   ├── WebRtcSessionManager.cs
 │   │   │   ├── DataChannelManager.cs
@@ -1738,9 +1755,11 @@ Expose in a debug overlay during development. Remove or hide behind a flag in re
 
 | Package | Module | Purpose |
 |---|---|---|
+| `Geralt` | Vox.Core | libsodium wrapper (Ed25519, X25519, XChaCha20-Poly1305, BLAKE2b, Argon2id) |
 | `SIPSorcery` | Vox.Network | WebRTC DataChannels, ICE, STUN |
 | `Microsoft.Data.Sqlite` | Vox.Chat, Vox.Core | Local storage for events, chat history, peer data |
 | `System.IO.Pipelines` | Vox.Network | High-performance I/O for WireGuard tunnel |
+| `Microsoft.Extensions.Logging.Abstractions` | Vox.Network | Structured logging abstractions |
 | `System.Threading.Channels` | All | Producer-consumer threading |
 | `Microsoft.Extensions.Logging` | All | Structured logging |
 | `CommunityToolkit.Mvvm` | Vox.App | MVVM helpers (ObservableObject, RelayCommand) |
@@ -1749,7 +1768,7 @@ Expose in a debug overlay during development. Remove or hide behind a flag in re
 
 | Library | Module | Source | Build |
 |---|---|---|---|
-| **libsodium** | Vox.Core | [libsodium](https://github.com/jedisct1/libsodium) | Pre-built binaries via `libsodium` NuGet or manual compile |
+| **libsodium** | Vox.Core (via Geralt NuGet) | [Geralt](https://github.com/samuel-lucas6/Geralt) | Managed wrapper — no manual native build needed |
 | **boringtun** | Vox.Network | [boringtun](https://github.com/cloudflare/boringtun) | Compile from Rust source as C dylib per platform |
 | **libopus** | Vox.Voice | [opus-codec](https://opus-codec.org/) | Pre-built binaries via `Concentus.Native` NuGet or manual compile |
 | **librnnoise** | Vox.Voice | [rnnoise](https://github.com/xiph/rnnoise) | Compile from C source per platform |
@@ -1760,7 +1779,7 @@ For rapid prototyping or platforms where native libs are problematic:
 
 | Native | Managed Alternative | Trade-off |
 |---|---|---|
-| libsodium | `NSec` or `System.Security.Cryptography` | NSec wraps libsodium but is managed-friendly. System.Security lacks Ed25519 in older runtimes. |
+| libsodium | `Geralt` (current choice) or `NSec` | Geralt wraps libsodium with idiomatic .NET Span APIs. Already in use. |
 | boringtun | `Noise.NET` (Noise protocol only) | No full WireGuard — handshake-only authentication. |
 | libopus | `Concentus` (pure C# Opus) | 3-5x slower encoding. Acceptable for MVP prototyping. |
 | librnnoise | Skip noise suppression | Degrade gracefully — just disable the feature. |
