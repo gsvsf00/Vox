@@ -39,6 +39,10 @@ public static class VoxDefaults
     // --- Chat ---
     public const int MaxChatMessageBytes = 4_000;
 
+    // --- Identity ---
+    public const int MaxUsernameBytes = 255;
+    public const int MaxReasonBytes = 255;
+
     // --- Protocol ---
     public const uint KnockMagic = 0x564F5801;
     public const uint KnockAcceptMagic = 0x564F5802;
