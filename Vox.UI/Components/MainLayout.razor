@@ -1,0 +1,46 @@
+@using Vox.Services
+@implements IDisposable
+@inject AppState App
+
+<div class="vox-layout">
+    <GroupRail OnShowContacts="ShowContacts" OnGroupSelected="OnGroupSelected" />
+
+    @if (_showContacts)
+    {
+        <ContactsPanel />
+    }
+    else
+    {
+        <ChannelSidebar />
+        <ChatPanel />
+        <MemberSidebar />
+    }
+</div>
+
+@code {
+    private bool _showContacts;
+
+    protected override void OnInitialized()
+    {
+        App.StateChanged += OnStateChanged;
+    }
+
+    private void ShowContacts()
+    {
+        _showContacts = true;
+        StateHasChanged();
+    }
+
+    private void OnGroupSelected()
+    {
+        _showContacts = false;
+        StateHasChanged();
+    }
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        App.StateChanged -= OnStateChanged;
+    }
+}

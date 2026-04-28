@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-
-namespace Vox
+﻿namespace Vox
 {
     public partial class App : Application
     {
@@ -11,7 +9,7 @@ namespace Vox
 
         protected override Window CreateWindow(IActivationState? activationState)
         {
-            return new Window(new AppShell());
+            return new Window(new MainPage()) { Title = "Vox" };
         }
     }
 }

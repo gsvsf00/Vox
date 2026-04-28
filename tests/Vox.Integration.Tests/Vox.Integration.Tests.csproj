@@ -23,6 +23,10 @@
     <ProjectReference Include="..\..\src\Vox.Network\Vox.Network.csproj" />
     <ProjectReference Include="..\..\src\Vox.Chat\Vox.Chat.csproj" />
     <ProjectReference Include="..\..\src\Vox.Voice\Vox.Voice.csproj" />
+    <ProjectReference Include="..\..\Vox.Chat\Vox.Chat.csproj" />
+    <ProjectReference Include="..\..\Vox.Core\Vox.Core.csproj" />
+    <ProjectReference Include="..\..\Vox.Network\Vox.Network.csproj" />
+    <ProjectReference Include="..\..\Vox.Voice\Vox.Voice.csproj" />
   </ItemGroup>
 
 </Project>

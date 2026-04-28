@@ -21,6 +21,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Vox.Core\Vox.Core.csproj" />
     <ProjectReference Include="..\..\src\Vox.Voice\Vox.Voice.csproj" />
+    <ProjectReference Include="..\..\Vox.Core\Vox.Core.csproj" />
+    <ProjectReference Include="..\..\Vox.Voice\Vox.Voice.csproj" />
   </ItemGroup>
 
 </Project>

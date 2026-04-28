@@ -85,7 +85,7 @@ public class ChatServiceTests : IDisposable
         Assert.Single(history);
         Assert.Equal("Hello, world!", history[0].Content);
         Assert.Equal(_identity.PeerId, history[0].Author);
-        Assert.Equal("TestUser#1234", history[0].AuthorDisplayName);
+        Assert.Equal("TestUser", history[0].AuthorDisplayName);
         Assert.True(history[0].Verified);
     }
 

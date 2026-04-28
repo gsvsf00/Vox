@@ -12,7 +12,7 @@ public sealed record PeerInfo(
     PeerCapabilities Capabilities
 )
 {
-    public string DisplayName => $"{Username}#{Discriminator:D4}";
+    public string DisplayName => Username;
 }
 
 public enum PeerStatus : byte

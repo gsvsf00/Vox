@@ -1,0 +1,747 @@
+/* ── Vox Design Tokens ─────────────────────────────── */
+:root {
+    --vox-bg:      #1e1f22;
+    --vox-panel:   #2b2d31;
+    --vox-text:    #dbdee1;
+    --vox-muted:   #949ba4;
+    --vox-accent:  #5865f2;
+    --vox-danger:  #ed4245;
+    --vox-border:  #3f4147;
+    --vox-radius:  8px;
+    --vox-sidebar: #2b2d31;
+    --vox-rail:    #1e1f22;
+    --vox-hover:   #35373c;
+    --vox-input:   #383a40;
+    --vox-success: #57f287;
+}
+
+/* ── Reset ────────────────────────────────────────── */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body, #app {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 14px;
+    color: var(--vox-text);
+    background: var(--vox-bg);
+}
+
+/* ── Scrollbar ────────────────────────────────────── */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--vox-border);
+    border-radius: 4px;
+}
+
+/* ── App Layout ───────────────────────────────────── */
+.vox-layout {
+    display: flex;
+    height: 100%;
+    width: 100%;
+}
+
+/* ── Left Rail (Groups) ──────────────────────────── */
+.vox-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 72px;
+    min-width: 72px;
+    background: var(--vox-rail);
+    padding: 12px 0;
+    gap: 8px;
+    overflow-y: auto;
+}
+
+.vox-rail-item {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--vox-panel);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: border-radius 0.2s, background 0.2s;
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--vox-text);
+    border: none;
+    outline: none;
+}
+.vox-rail-item:hover,
+.vox-rail-item.active {
+    border-radius: var(--vox-radius);
+    background: var(--vox-accent);
+}
+
+.vox-rail-separator {
+    width: 32px;
+    height: 2px;
+    background: var(--vox-border);
+    border-radius: 1px;
+}
+
+/* ── Left Sidebar (Channels) ────────────────────── */
+.vox-sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 240px;
+    min-width: 240px;
+    background: var(--vox-sidebar);
+    border-right: 1px solid var(--vox-border);
+}
+
+.vox-sidebar-header {
+    padding: 12px 16px;
+    font-weight: 600;
+    font-size: 15px;
+    border-bottom: 1px solid var(--vox-border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vox-channel-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+}
+
+.vox-channel-category {
+    padding: 16px 16px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--vox-muted);
+    letter-spacing: 0.02em;
+}
+
+.vox-channel-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    cursor: pointer;
+    color: var(--vox-muted);
+    font-size: 14px;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+}
+.vox-channel-item:hover {
+    background: var(--vox-hover);
+    color: var(--vox-text);
+}
+.vox-channel-item.active {
+    background: var(--vox-hover);
+    color: var(--vox-text);
+    font-weight: 500;
+}
+.vox-channel-hash {
+    font-weight: 600;
+    opacity: 0.6;
+}
+
+/* ── User Panel (bottom of sidebar) ──────────────── */
+.vox-user-panel {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--vox-rail);
+    border-top: 1px solid var(--vox-border);
+}
+
+.vox-user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--vox-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 13px;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.vox-user-info {
+    flex: 1;
+    min-width: 0;
+}
+.vox-user-name {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.vox-user-status {
+    font-size: 11px;
+    color: var(--vox-muted);
+}
+
+/* ── Center Panel (Chat) ─────────────────────────── */
+.vox-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.vox-center-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--vox-border);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.vox-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.vox-message {
+    display: flex;
+    gap: 12px;
+    padding: 2px 0;
+    border-radius: 4px;
+}
+.vox-message:hover {
+    background: rgba(0,0,0,0.06);
+}
+
+/* Grouped message head (with avatar + name) */
+.vox-message-head {
+    margin-top: 12px;
+    padding-top: 4px;
+}
+
+/* Continuation message (no avatar) */
+.vox-message-cont {
+    padding-left: 0;
+}
+
+.vox-message-gutter {
+    width: 40px;
+    min-width: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 12px;
+}
+
+.vox-message-hover-time {
+    font-size: 10px;
+    color: var(--vox-muted);
+    opacity: 0;
+    user-select: none;
+}
+.vox-message-cont:hover .vox-message-hover-time {
+    opacity: 1;
+}
+
+.vox-message-cont > .vox-message-content {
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.vox-message-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--vox-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    flex-shrink: 0;
+    font-size: 14px;
+}
+
+.vox-message-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.vox-message-header {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+.vox-message-author {
+    font-weight: 600;
+    font-size: 14px;
+}
+.vox-message-time {
+    font-size: 11px;
+    color: var(--vox-muted);
+}
+
+.vox-message-content {
+    margin-top: 2px;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+/* ── Chat Input ───────────────────────────────────── */
+.vox-input-area {
+    padding: 0 16px 16px;
+    flex-shrink: 0;
+}
+
+.vox-input-wrapper {
+    display: flex;
+    align-items: center;
+    background: var(--vox-input);
+    border-radius: var(--vox-radius);
+    padding: 8px 16px;
+}
+
+.vox-input-wrapper input,
+.vox-input-wrapper textarea {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--vox-text);
+    font-size: 14px;
+    font-family: inherit;
+    resize: none;
+}
+.vox-input-wrapper input::placeholder,
+.vox-input-wrapper textarea::placeholder {
+    color: var(--vox-muted);
+}
+
+/* ── Right Sidebar (Members) ─────────────────────── */
+.vox-members {
+    display: flex;
+    flex-direction: column;
+    width: 240px;
+    min-width: 240px;
+    background: var(--vox-sidebar);
+    border-left: 1px solid var(--vox-border);
+    overflow-y: auto;
+}
+
+.vox-members-header {
+    padding: 12px 16px;
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    color: var(--vox-muted);
+    letter-spacing: 0.02em;
+}
+
+.vox-member-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    cursor: default;
+}
+.vox-member-item:hover {
+    background: var(--vox-hover);
+    border-radius: 4px;
+}
+
+.vox-member-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--vox-panel);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 12px;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.vox-member-name {
+    font-size: 14px;
+    color: var(--vox-muted);
+}
+.vox-member-name.online {
+    color: var(--vox-text);
+}
+
+/* ── Status Indicator ─────────────────────────────── */
+.vox-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--vox-sidebar);
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+}
+.vox-status-dot.online  { background: var(--vox-success); }
+.vox-status-dot.idle    { background: #faa61a; }
+.vox-status-dot.dnd     { background: var(--vox-danger); }
+.vox-status-dot.offline { background: var(--vox-muted); }
+
+/* ── Empty State ──────────────────────────────────── */
+.vox-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--vox-muted);
+    gap: 8px;
+}
+.vox-empty-icon {
+    font-size: 48px;
+    opacity: 0.3;
+}
+.vox-empty-text {
+    font-size: 16px;
+}
+
+/* ── Blazor error UI ──────────────────────────────── */
+#blazor-error-ui {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    background: var(--vox-danger);
+    color: #fff;
+    padding: 8px 16px;
+    text-align: center;
+    z-index: 1000;
+}
+#blazor-error-ui .reload { color: #fff; text-decoration: underline; }
+#blazor-error-ui .dismiss { cursor: pointer; margin-left: 16px; }
+
+/* ── Context Menu (fixed overlay) ─────────────────── */
+.vox-overlay-dismiss {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+}
+
+.vox-context-menu-fixed {
+    position: fixed;
+    background: var(--vox-panel);
+    border: 1px solid var(--vox-border);
+    border-radius: var(--vox-radius);
+    padding: 4px;
+    min-width: 180px;
+    z-index: 100;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+
+.vox-context-item {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    background: none;
+    border: none;
+    color: var(--vox-text);
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 4px;
+}
+.vox-context-item:hover {
+    background: var(--vox-hover);
+}
+.vox-context-item.danger {
+    color: var(--vox-danger);
+}
+.vox-context-item.danger:hover {
+    background: rgba(237,66,69,0.15);
+}
+.vox-context-item.muted {
+    color: var(--vox-muted);
+}
+
+/* ── Contacts Button (Rail) ──────────────────────── */
+.vox-contacts-btn {
+    background: var(--vox-panel) !important;
+}
+.vox-contacts-btn:hover {
+    background: var(--vox-accent) !important;
+}
+.vox-contacts-btn svg {
+    fill: var(--vox-text);
+}
+
+/* ── Channel Row ──────────────────────────────────── */
+.vox-channel-category-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 16px 4px;
+}
+
+.vox-channel-add {
+    background: none;
+    border: none;
+    color: var(--vox-muted);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+.vox-channel-add:hover {
+    color: var(--vox-text);
+}
+
+.vox-channel-row {
+    display: flex;
+    align-items: center;
+}
+
+.vox-channel-actions {
+    display: flex;
+    gap: 2px;
+    padding-right: 8px;
+}
+
+.vox-channel-action {
+    background: none;
+    border: none;
+    color: var(--vox-muted);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+.vox-channel-action:hover {
+    color: var(--vox-text);
+    background: var(--vox-hover);
+}
+.vox-channel-action.danger:hover {
+    color: var(--vox-danger);
+}
+
+/* ── Modal ────────────────────────────────────────── */
+.vox-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+
+.vox-modal {
+    background: var(--vox-panel);
+    border-radius: var(--vox-radius);
+    padding: 20px;
+    min-width: 320px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+.vox-modal-title {
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 12px;
+}
+
+.vox-modal-input {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--vox-input);
+    border: 1px solid var(--vox-border);
+    border-radius: 4px;
+    color: var(--vox-text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    margin-bottom: 12px;
+}
+.vox-modal-input:focus {
+    border-color: var(--vox-accent);
+}
+
+.vox-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* ── Buttons ──────────────────────────────────────── */
+.vox-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    background: var(--vox-hover);
+    color: var(--vox-text);
+}
+.vox-btn:hover {
+    background: var(--vox-border);
+}
+.vox-btn.primary {
+    background: var(--vox-accent);
+    color: #fff;
+}
+.vox-btn.primary:hover {
+    filter: brightness(1.1);
+}
+.vox-btn.danger {
+    background: transparent;
+    color: var(--vox-danger);
+}
+.vox-btn.danger:hover {
+    background: rgba(237,66,69,0.15);
+}
+.vox-btn.small {
+    padding: 4px 10px;
+    font-size: 12px;
+}
+.vox-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* ── User Panel Additions ─────────────────────────── */
+.vox-user-panel {
+    position: relative;
+}
+
+.vox-user-status-row {
+    margin-top: 1px;
+}
+
+.vox-status-select {
+    background: none;
+    border: none;
+    color: var(--vox-muted);
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 0;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.vox-status-select option {
+    background: var(--vox-panel);
+    color: var(--vox-text);
+}
+
+.vox-inline-edit {
+    background: var(--vox-input);
+    border: 1px solid var(--vox-accent);
+    color: var(--vox-text);
+    font-size: 13px;
+    font-family: inherit;
+    font-weight: 600;
+    padding: 1px 4px;
+    border-radius: 3px;
+    outline: none;
+    width: 100%;
+}
+
+.vox-copy-link-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px;
+    opacity: 0.5;
+    flex-shrink: 0;
+}
+.vox-copy-link-btn:hover {
+    opacity: 1;
+}
+
+/* ── Contacts Panel ───────────────────────────────── */
+.vox-contacts-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    background: var(--vox-panel);
+    border-right: 1px solid var(--vox-border);
+}
+
+.vox-contacts-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+}
+
+.vox-contact-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+}
+.vox-contact-card:hover {
+    background: var(--vox-hover);
+}
+
+.vox-contact-name {
+    flex: 1;
+    font-size: 14px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vox-contact-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.vox-contacts-footer {
+    display: flex;
+    gap: 8px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--vox-border);
+    background: var(--vox-rail);
+}
+.vox-contacts-footer .vox-input-wrapper {
+    flex: 1;
+}
+
+.vox-empty-inline {
+    padding: 32px 16px;
+    text-align: center;
+    color: var(--vox-muted);
+}
+.vox-empty-sub {
+    font-size: 12px;
+    margin-top: 4px;
+    opacity: 0.7;
+}
+
+/* ── Modal Error ──────────────────────────────────── */
+.vox-modal-error {
+    color: var(--vox-danger);
+    font-size: 13px;
+    margin-bottom: 8px;
+}

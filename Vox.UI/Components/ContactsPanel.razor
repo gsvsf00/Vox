@@ -1,0 +1,112 @@
+@using Vox.Services
+@using Vox.Core.Contacts
+@using Vox.Core.Identity
+@implements IDisposable
+@inject AppState App
+
+<div class="vox-contacts-panel">
+    <div class="vox-sidebar-header">Contacts</div>
+
+    <div class="vox-contacts-body">
+        @* Pending Requests *@
+        @{ var pending = App.PendingContactRequests; }
+        @if (pending.Count > 0)
+        {
+            <div class="vox-channel-category">Pending — @pending.Count</div>
+            @foreach (var req in pending)
+            {
+                <div class="vox-contact-card">
+                    <div class="vox-member-avatar">
+                        @req.DisplayName[..Math.Min(2, req.DisplayName.Length)].ToUpperInvariant()
+                    </div>
+                    <span class="vox-contact-name">@req.DisplayName</span>
+                    <div class="vox-contact-actions">
+                        <button class="vox-btn small primary" @onclick="() => Accept(req)">Accept</button>
+                        <button class="vox-btn small danger" @onclick="() => Reject(req)">Reject</button>
+                    </div>
+                </div>
+            }
+        }
+
+        @* Contacts list *@
+        @{ var contacts = App.Contacts; }
+        <div class="vox-channel-category">All Contacts — @contacts.Count</div>
+
+        @if (contacts.Count == 0 && pending.Count == 0)
+        {
+            <div class="vox-empty-inline">
+                <div class="vox-empty-text">No contacts yet</div>
+                <div class="vox-empty-sub">Share your Contact Link to add friends</div>
+            </div>
+        }
+        else
+        {
+            @foreach (var c in contacts)
+            {
+                <div class="vox-contact-card">
+                    <div class="vox-member-avatar">
+                        @c.DisplayName[..Math.Min(2, c.DisplayName.Length)].ToUpperInvariant()
+                        <div class="vox-status-dot @GetStatusClass(App.GetPeerStatus(c.PeerId))"></div>
+                    </div>
+                    <span class="vox-contact-name">@c.DisplayName</span>
+                    <div class="vox-contact-actions">
+                        <button class="vox-btn small" title="DM (coming soon)" disabled>DM</button>
+                        <button class="vox-btn small danger" @onclick="() => Remove(c)">✕</button>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    @* Add Contact *@
+    <div class="vox-contacts-footer">
+        <div class="vox-input-wrapper">
+            <input type="text" placeholder="Paste contact link…"
+                   @bind="_contactLink" @bind:event="oninput"
+                   @onkeydown="OnAddKeyDown" />
+        </div>
+        <button class="vox-btn primary" @onclick="SendRequest" disabled="@string.IsNullOrWhiteSpace(_contactLink)">
+            Add
+        </button>
+    </div>
+</div>
+
+@code {
+    private string _contactLink = "";
+
+    protected override void OnInitialized()
+    {
+        App.StateChanged += OnStateChanged;
+    }
+
+    private async Task SendRequest()
+    {
+        if (string.IsNullOrWhiteSpace(_contactLink)) return;
+        await App.SendContactRequestAsync(_contactLink.Trim());
+        _contactLink = "";
+    }
+
+    private async Task OnAddKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SendRequest();
+    }
+
+    private async Task Accept(ContactInfo c) => await App.AcceptContactAsync(c.PeerId);
+    private async Task Reject(ContactInfo c) => await App.RejectContactAsync(c.PeerId);
+    private async Task Remove(ContactInfo c) => await App.RemoveContactAsync(c.PeerId);
+
+    private static string GetStatusClass(PeerStatus status) => status switch
+    {
+        PeerStatus.Online => "online",
+        PeerStatus.Away => "idle",
+        PeerStatus.DoNotDisturb => "dnd",
+        _ => "offline"
+    };
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        App.StateChanged -= OnStateChanged;
+    }
+}

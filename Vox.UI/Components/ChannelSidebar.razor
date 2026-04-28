@@ -1,0 +1,127 @@
+@using Vox.Services
+@using Vox.Core.Channels
+@implements IDisposable
+@inject AppState App
+
+<div class="vox-sidebar">
+    @if (App.SelectedGroup is not null)
+    {
+        <div class="vox-sidebar-header">@App.SelectedGroup.Name</div>
+        <div class="vox-channel-list">
+            <div class="vox-channel-category-row">
+                <span class="vox-channel-category">Text Channels</span>
+                <button class="vox-channel-add" title="Add Channel" @onclick="OnAddChannel">+</button>
+            </div>
+
+            @foreach (var ch in App.GetChannels().Where(c => c.Type == ChannelType.Text))
+            {
+                var isActive = App.SelectedChannel?.Id == ch.Id;
+                <div class="vox-channel-row">
+                    <button class="vox-channel-item @(isActive ? "active" : "")"
+                            @onclick="() => App.SelectChannel(ch)">
+                        <span class="vox-channel-hash">#</span> @ch.Name
+                    </button>
+
+                    @if (isActive)
+                    {
+                        <div class="vox-channel-actions">
+                            <button class="vox-channel-action" title="Rename" @onclick="() => StartRename(ch)">✏</button>
+                            <button class="vox-channel-action danger" title="Delete" @onclick="() => OnDeleteChannel(ch)">✕</button>
+                        </div>
+                    }
+                </div>
+            }
+
+            @{ var voiceChannels = App.GetChannels().Where(c => c.Type == ChannelType.Voice).ToList(); }
+            @if (voiceChannels.Count > 0)
+            {
+                <div class="vox-channel-category-row">
+                    <span class="vox-channel-category">Voice Channels</span>
+                </div>
+                @foreach (var ch in voiceChannels)
+                {
+                    <button class="vox-channel-item" disabled>
+                        <span class="vox-channel-hash">🔊</span> @ch.Name
+                    </button>
+                }
+            }
+        </div>
+
+        @if (_renaming is not null)
+        {
+            <div class="vox-modal-overlay" @onclick="CancelRename">
+                <div class="vox-modal" @onclick:stopPropagation="true">
+                    <div class="vox-modal-title">Rename Channel</div>
+                    <input class="vox-modal-input" @bind="_renameValue" @bind:event="oninput"
+                           @onkeydown="OnRenameKeyDown" placeholder="Channel name" />
+                    <div class="vox-modal-actions">
+                        <button class="vox-btn" @onclick="CancelRename">Cancel</button>
+                        <button class="vox-btn primary" @onclick="ConfirmRename">Rename</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="vox-sidebar-header">Vox</div>
+        <div class="vox-channel-list">
+            <div class="vox-empty">
+                <div class="vox-empty-text">Create or join a group</div>
+            </div>
+        </div>
+    }
+
+    <UserPanel />
+</div>
+
+@code {
+    private ChannelInfo? _renaming;
+    private string _renameValue = "";
+
+    private async Task OnAddChannel()
+    {
+        var count = App.GetChannels().Count;
+        await App.CreateChannelAsync($"channel-{count + 1}");
+    }
+
+    private void StartRename(ChannelInfo ch)
+    {
+        _renaming = ch;
+        _renameValue = ch.Name;
+    }
+
+    private void CancelRename() => _renaming = null;
+
+    private async Task ConfirmRename()
+    {
+        if (_renaming is not null && !string.IsNullOrWhiteSpace(_renameValue))
+        {
+            await App.RenameChannelAsync(_renaming.Id, _renameValue.Trim());
+            _renaming = null;
+        }
+    }
+
+    private async Task OnRenameKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ConfirmRename();
+        if (e.Key == "Escape") CancelRename();
+    }
+
+    private async Task OnDeleteChannel(ChannelInfo ch)
+    {
+        await App.DeleteChannelAsync(ch.Id);
+    }
+
+    protected override void OnInitialized()
+    {
+        App.StateChanged += OnStateChanged;
+    }
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        App.StateChanged -= OnStateChanged;
+    }
+}

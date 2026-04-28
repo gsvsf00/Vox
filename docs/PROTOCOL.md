@@ -26,12 +26,35 @@
 - Knock packet encryption: crypto_box-style (X25519 DH + XChaCha20-Poly1305) using WG keypairs.
 - WireGuard handshake: Noise_IKpsk2 w/ group PSK binding (PSK = group symmetric key).
 
+### 2.1 CapsuleType Enum
+All shareable links use a unified capsule format with a type discriminator:
+
+| Value | Name           | Description                    |
+|-------|----------------|--------------------------------|
+| 0x01  | GroupInvite    | Group invite capsule           |
+| 0x02  | ContactInvite  | Contact invite capsule         |
+
+### 2.2 Unified Capsule Encoding Pipeline
+All capsule tokens (group invites, contact links) follow this exact pipeline:
+
+1. **Serialize** — Deterministic compact binary serialization of the payload
+2. **Prefix** — Prepend envelope: `version(1B) + capsule_type(1B)`
+3. **GZIP compress** — Compress the envelope (version + type + payload)
+4. **Encrypt** — AEAD encryption (XChaCha20-Poly1305, 32B key, 24B nonce)
+   - GroupInvite: key = group symmetric key
+   - ContactInvite: key = well-known constant (BLAKE2b-256 of fixed label)
+5. **Base64URL encode** — URL-safe alphabet: `-` and `_` instead of `+` and `/`, NO `=` padding, no line breaks
+
+Decoding reverses the pipeline: Base64URL decode → Decrypt → GZIP decompress → Read version + type → Extract payload.
+
+Tokens are fully self-contained. No server-side mapping, short codes, or central lookup.
+
 ## 3. URL / Invite format
 ### 3.1 URL
-vox://join/<base64url(encrypted_capsule)>?ep=<ip:port>[,<ip:port>...]&bpk=<base64url(wg_pubkey)>
+vox://join/<capsule_token>?ep=<ip:port>[,<ip:port>...]&bpk=<base64url(wg_pubkey)>
 
 Notes:
-- encrypted_capsule: opaque to joiner
+- capsule_token: produced by the unified encoding pipeline (§2.2)
 - ep: plaintext endpoints so joiner knows where to send the first knock
 - bpk: bootstrap’s WG public key (joiner can’t decrypt capsule to learn it)
 
@@ -55,7 +78,7 @@ Fields (in order):
 - creator_signature: 64B Ed25519 signature over all previous fields
 
 Encryption:
-- nonce(24B) + XChaCha20-Poly1305(ciphertext + tag)
+- Encoded via unified pipeline (§2.2): version+type prefix → GZIP → XChaCha20-Poly1305 → Base64URL
 - key: group symmetric key (32B)
 
 ## 4. Connection lifecycle (MVP)
@@ -169,10 +192,14 @@ Direction: Joiner -> Bootstrap
 - After joiner is admitted, bootstrap forwards SDP + ICE to connect joiner to other peers.
 
 ### 6.1 DataChannels (names + semantics)
-1) vox-signaling: reliable, ordered
-2) vox-chat: reliable, ordered
-3) vox-routing: reliable, unordered (plus probes can be unreliable)
-4) vox-voice: unreliable, unordered
+
+1) vox-signaling: reliable, ordered  
+2) vox-chat: reliable, ordered  
+3) vox-routing:
+   - LinkStateUpdate (0x40): reliable, ordered
+   - RoutingProbe (0x41): unreliable, unordered
+   - RoutingPong (0x42): unreliable, unordered
+4) vox-voice: unreliable, unordered  
 5) vox-presence: reliable, unordered
 
 ICE:
@@ -204,6 +231,9 @@ Offset | Size | Field
 0x53 IceCandidate (vox-signaling)
 0x60 GroupStateSync (vox-signaling)
 0x61 GroupEvent (vox-signaling)
+0x70 ContactRequest (vox-signaling)
+0x71 ContactAccept (vox-signaling)
+0x72 ContactReject (vox-signaling)
 
 ## 9. Chat (vox-chat)
 ### 9.1 ChatMessage (0x10)
@@ -289,11 +319,82 @@ Loop prevention:
 - RoutingProbe (0x41) and RoutingPong (0x42) are small, may be unreliable.
 - Probes run every ~1s per neighbor.
 
-## 14. Error handling
+RoutingProbe (0x41) and RoutingPong (0x42) MUST use unreliable delivery.
+They are periodic measurement signals and must not introduce backpressure
+into routing convergence.
+
+## 14. Contacts (vox-signaling)
+
+Contact exchange is a lightweight cousin of group admission. No global search exists;
+contacts are established only via Contact Link/QR or shared group membership.
+
+### 14.1 Contact Link format
+vox://contact/<capsule_token>
+
+The capsule_token is produced by the unified encoding pipeline (§2.2)
+with CapsuleType = 0x02 (ContactInvite).
+
+Contact capsule (cleartext, before encoding pipeline):
+- peer_id: 32B (Ed25519 public key)
+- display_name_length: 1B
+- display_name_utf8: var
+- endpoint_count: 1B
+- endpoints: count * (ip_len:1B + ip:var + port:2B)
+- timestamp_ms: 8B
+- signature: 64B (Ed25519 over all preceding fields)
+
+Encryption key: well-known constant (BLAKE2b-256 of "vox-contact-capsule-v1").
+The link contains only public info; the signature provides integrity.
+Authorization happens during the Knock/handshake flow.
+
+### 14.2 ContactRequest (0x70)
+Direction: Requester -> Target (via Knock or existing connection)
+
+- common header
+- requester_identity: 32B
+- display_name_length: 1B
+- display_name_utf8: var
+- timestamp_ms: 8B
+- signature: 64B
+
+If no existing connection exists, this is sent as a ContactKnock:
+a Knock packet (§5.1) with scope=contact instead of scope=group.
+The capsule field carries the serialized ContactRequest.
+
+### 14.3 ContactAccept (0x71)
+Direction: Target -> Requester (over established tunnel or connection)
+
+- common header
+- accepter_identity: 32B
+- display_name_length: 1B
+- display_name_utf8: var
+- timestamp_ms: 8B
+- signature: 64B
+
+After acceptance, both peers store each other as contacts locally.
+Presence is exchanged when both are online.
+
+### 14.4 ContactReject (0x72)
+Direction: Target -> Requester
+
+- common header
+- rejecter_identity: 32B
+- timestamp_ms: 8B
+- signature: 64B
+
+No reason field. Rejection is silent to prevent information leakage.
+
+### 14.5 Contact storage
+- Contacts are stored locally per-client.
+- No central contact directory.
+- Contact status: Pending, Accepted, Blocked.
+- QR code support deferred to mobile phase (hooks present).
+
+## 15. Error handling
 - Any packet failing signature validation MUST be dropped.
 - Any peer sending invalid packets repeatedly SHOULD be disconnected (rate limit).
 
-## 15. Versioning
+## 16. Versioning
 - Protocol version in Knock packets.
 - DataChannel packets can include a “capabilities” bitmap in PeerListSync.
 

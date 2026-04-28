@@ -123,14 +123,15 @@ public sealed class GroupService : IGroupService, IDisposable
         // Re-serialize with real signature
         var capsuleBytes = InviteCapsuleSerializer.Serialize(capsule);
 
-        // Encrypt capsule with group symmetric key
-        var encryptedCapsule = _cryptoService.Encrypt(capsuleBytes, managed.Info.SymmetricKey);
+        // Encode capsule through unified pipeline: version+type → GZIP → Encrypt → Base64URL
+        var token = Crypto.CapsuleCodec.Encode(
+            Crypto.CapsuleType.GroupInvite, capsuleBytes, managed.Info.SymmetricKey, _cryptoService);
 
         // TODO: Replace placeholder bootstrap peer with real WireGuardService endpoint data.
         // Currently uses a dummy key and loopback address because the local peer's WG public key
         // and externally-reachable endpoint are not yet available at this layer.
         // Production flow: query IWireGuardService for the local public key and NAT-mapped endpoint.
-        var url = InviteUrl.Create(encryptedCapsule, [
+        var url = InviteUrl.Create(token, [
             new BootstrapPeer(new byte[32], new IPEndPoint(IPAddress.Loopback, 1))
         ]);
 

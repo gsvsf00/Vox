@@ -1,0 +1,94 @@
+@using Vox.Services
+@using Vox.Core.Identity
+@inject AppState App
+@inject IJSRuntime JS
+
+<div class="vox-user-panel">
+    @if (App.CurrentIdentity is not null)
+    {
+        <div class="vox-user-avatar">
+            @App.CurrentIdentity.Username[..Math.Min(2, App.CurrentIdentity.Username.Length)].ToUpperInvariant()
+            <div class="vox-status-dot @GetStatusClass(App.LocalStatus)"></div>
+        </div>
+        <div class="vox-user-info">
+            @if (_editingName)
+            {
+                <input class="vox-inline-edit" @bind="_nameValue" @bind:event="oninput"
+                       @onkeydown="OnNameKeyDown" @onblur="CancelNameEdit" placeholder="Name" />
+            }
+            else
+            {
+                <div class="vox-user-name" @ondblclick="StartNameEdit" title="Double-click to edit">
+                    @App.CurrentIdentity.Username
+                </div>
+            }
+            <div class="vox-user-status-row">
+                <select class="vox-status-select" @onchange="OnStatusChange" value="@App.LocalStatus">
+                    <option value="@PeerStatus.Online">Online</option>
+                    <option value="@PeerStatus.Away">Idle</option>
+                    <option value="@PeerStatus.DoNotDisturb">Do Not Disturb</option>
+                </select>
+            </div>
+        </div>
+        <button class="vox-copy-link-btn" title="Copy Contact Link" @onclick="CopyContactLink">🔗</button>
+    }
+    else
+    {
+        <div class="vox-user-avatar">?</div>
+        <div class="vox-user-info">
+            <div class="vox-user-name">Not signed in</div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _editingName;
+    private string _nameValue = "";
+
+    private void StartNameEdit()
+    {
+        _nameValue = App.CurrentIdentity?.Username ?? "";
+        _editingName = true;
+    }
+
+    private void CancelNameEdit() => _editingName = false;
+
+    private void OnNameKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_nameValue))
+        {
+            App.ChangeDisplayName(_nameValue.Trim());
+            _editingName = false;
+        }
+        else if (e.Key == "Escape")
+        {
+            _editingName = false;
+        }
+    }
+
+    private async Task OnStatusChange(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<PeerStatus>(e.Value?.ToString(), out var status))
+        {
+            await App.SetLocalStatusAsync(status);
+        }
+    }
+
+    private async Task CopyContactLink()
+    {
+        var link = App.GetContactLink();
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", link);
+        }
+        catch { }
+    }
+
+    private static string GetStatusClass(PeerStatus status) => status switch
+    {
+        PeerStatus.Online => "online",
+        PeerStatus.Away => "idle",
+        PeerStatus.DoNotDisturb => "dnd",
+        _ => "offline"
+    };
+}

@@ -32,4 +32,7 @@ public enum GroupEventType : byte
     ChatMessage = 0x03,
     PresenceChanged = 0x04,
     GroupMetadataChanged = 0x05,
+    ChannelCreated = 0x06,
+    ChannelRenamed = 0x07,
+    ChannelDeleted = 0x08,
 }

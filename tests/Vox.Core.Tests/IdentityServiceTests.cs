@@ -129,8 +129,8 @@ public class IdentityServiceTests : IDisposable
         var svc = CreateService();
         var identity = svc.GetOrCreateIdentity("Delta");
 
-        // Should match Username#0000-9999
-        Assert.Matches(@"^Delta#\d{4}$", identity.DisplayName);
+        // DisplayName is just the username (no discriminator)
+        Assert.Equal("Delta", identity.DisplayName);
     }
 
     [Fact]

@@ -94,10 +94,11 @@ public class GroupServiceTests
 
         // Verify the URL is parseable
         var parsed = InviteUrl.Parse(url);
-        Assert.NotNull(parsed.EncryptedCapsule);
+        Assert.NotNull(parsed.CapsuleToken);
 
-        // Decrypt the capsule and verify password flag
-        var capsuleBytes = _crypto.Decrypt(parsed.EncryptedCapsule, group.SymmetricKey);
+        // Decode capsule via CapsuleCodec pipeline
+        var (type, capsuleBytes) = CapsuleCodec.Decode(parsed.CapsuleToken, group.SymmetricKey, _crypto);
+        Assert.Equal(CapsuleType.GroupInvite, type);
         var capsule = InviteCapsuleSerializer.Deserialize(capsuleBytes);
         Assert.True(capsule.Flags.HasFlag(InviteFlags.PasswordRequired));
         Assert.NotNull(capsule.PasswordHash);
@@ -122,7 +123,7 @@ public class GroupServiceTests
 
         var url = await service.CreateInviteAsync(group.Id);
         var parsed = InviteUrl.Parse(url);
-        var capsuleBytes = _crypto.Decrypt(parsed.EncryptedCapsule, group.SymmetricKey);
+        var (_, capsuleBytes) = CapsuleCodec.Decode(parsed.CapsuleToken, group.SymmetricKey, _crypto);
 
         var capsule = service.ValidateCapsule(capsuleBytes);
         Assert.NotNull(capsule);
@@ -140,7 +141,7 @@ public class GroupServiceTests
             new InviteOptions(Password: "mypassword"));
 
         var parsed = InviteUrl.Parse(url);
-        var capsuleBytes = _crypto.Decrypt(parsed.EncryptedCapsule, group.SymmetricKey);
+        var (_, capsuleBytes) = CapsuleCodec.Decode(parsed.CapsuleToken, group.SymmetricKey, _crypto);
         var capsule = InviteCapsuleSerializer.Deserialize(capsuleBytes);
 
         Assert.True(service.ValidatePassword(capsule, "mypassword"));
@@ -157,7 +158,7 @@ public class GroupServiceTests
 
         var url = await service.CreateInviteAsync(group.Id);
         var parsed = InviteUrl.Parse(url);
-        var capsuleBytes = _crypto.Decrypt(parsed.EncryptedCapsule, group.SymmetricKey);
+        var (_, capsuleBytes) = CapsuleCodec.Decode(parsed.CapsuleToken, group.SymmetricKey, _crypto);
         var capsule = InviteCapsuleSerializer.Deserialize(capsuleBytes);
 
         Assert.True(service.ValidatePassword(capsule, null));

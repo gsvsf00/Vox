@@ -1,4 +1,5 @@
 using System.Net;
+using Vox.Core.Crypto;
 using Vox.Core.Groups;
 
 namespace Vox.Core.Tests;
@@ -8,7 +9,7 @@ public class InviteUrlTests
     [Fact]
     public void Create_and_Parse_roundtrip()
     {
-        var capsule = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+        var token = CapsuleCodec.Base64UrlEncode(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 });
         var wgKey = new byte[32];
         wgKey[0] = 0xAA;
         var peers = new List<BootstrapPeer>
@@ -16,10 +17,10 @@ public class InviteUrlTests
             new(wgKey, new IPEndPoint(IPAddress.Parse("192.168.1.1"), 51820))
         };
 
-        var url = InviteUrl.Create(capsule, peers);
+        var url = InviteUrl.Create(token, peers);
         var parsed = InviteUrl.Parse(url);
 
-        Assert.Equal(capsule, parsed.EncryptedCapsule);
+        Assert.Equal(token, parsed.CapsuleToken);
         Assert.Equal(wgKey, parsed.BootstrapWireGuardPublicKey);
         Assert.Single(parsed.Endpoints);
         Assert.Equal("192.168.1.1", parsed.Endpoints[0].Address.ToString());
@@ -29,7 +30,7 @@ public class InviteUrlTests
     [Fact]
     public void Create_multiple_endpoints()
     {
-        var capsule = new byte[] { 10, 20 };
+        var token = CapsuleCodec.Base64UrlEncode(new byte[] { 10, 20 });
         var wgKey = new byte[32];
         var peers = new List<BootstrapPeer>
         {
@@ -37,7 +38,7 @@ public class InviteUrlTests
             new(wgKey, new IPEndPoint(IPAddress.Parse("10.0.0.2"), 5678)),
         };
 
-        var url = InviteUrl.Create(capsule, peers);
+        var url = InviteUrl.Create(token, peers);
         var parsed = InviteUrl.Parse(url);
 
         Assert.Equal(2, parsed.Endpoints.Count);
@@ -46,13 +47,13 @@ public class InviteUrlTests
     [Fact]
     public void Url_starts_with_vox_scheme()
     {
-        var capsule = new byte[] { 1 };
+        var token = CapsuleCodec.Base64UrlEncode(new byte[] { 1 });
         var peers = new List<BootstrapPeer>
         {
             new(new byte[32], new IPEndPoint(IPAddress.Loopback, 1000))
         };
 
-        var url = InviteUrl.Create(capsule, peers);
+        var url = InviteUrl.Create(token, peers);
 
         Assert.StartsWith("vox://join/", url);
     }
@@ -79,6 +80,6 @@ public class InviteUrlTests
     public void Create_empty_peers_throws()
     {
         Assert.Throws<ArgumentException>(() =>
-            InviteUrl.Create(new byte[] { 1 }, new List<BootstrapPeer>()));
+            InviteUrl.Create("dGVzdA", new List<BootstrapPeer>()));
     }
 }

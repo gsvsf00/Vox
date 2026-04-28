@@ -1,0 +1,203 @@
+@using Vox.Services
+@using Vox.Core.Groups
+@inject AppState App
+@inject IJSRuntime JS
+
+<div class="vox-rail">
+    <button class="vox-rail-item vox-contacts-btn @(_contactsActive ? "active" : "")" title="Friends" @onclick="OnContactsClick">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+        </svg>
+    </button>
+
+    <div class="vox-rail-separator"></div>
+
+    @foreach (var group in App.Groups)
+    {
+        var isActive = !_contactsActive && App.SelectedGroup?.Id == group.Id;
+        <button class="vox-rail-item @(isActive ? "active" : "")"
+                title="@group.Name"
+                @onclick="() => OnSelectGroup(group)"
+                @oncontextmenu="(e) => ShowGroupMenu(group, e)"
+                @oncontextmenu:preventDefault="true">
+            @group.Name[..Math.Min(2, group.Name.Length)].ToUpperInvariant()
+        </button>
+    }
+
+    @if (App.Groups.Count > 0)
+    {
+        <div class="vox-rail-separator"></div>
+    }
+
+    <button class="vox-rail-item" title="Create Group" @onclick="OnAddGroup">+</button>
+    <button class="vox-rail-item" title="Join via Invite" @onclick="() => _showJoinModal = true">↓</button>
+</div>
+
+@* Context menu rendered as fixed overlay *@
+@if (_menuGroup is not null)
+{
+    <div class="vox-overlay-dismiss" @onclick="CloseMenu"></div>
+    <div class="vox-context-menu-fixed" style="top: @(_menuY)px; left: 80px;">
+        <button class="vox-context-item" @onclick="() => CopyInvite(_menuGroup)">Copy Invite Link</button>
+        <button class="vox-context-item" @onclick="() => StartRenameGroup(_menuGroup)">Rename Group</button>
+        <button class="vox-context-item" @onclick="() => LeaveGroup(_menuGroup)">Leave Group</button>
+        <button class="vox-context-item danger" @onclick="() => DeleteGroup(_menuGroup)">Delete Group</button>
+    </div>
+}
+
+@* Rename Group modal *@
+@if (_showRenameModal)
+{
+    <div class="vox-modal-overlay" @onclick="() => _showRenameModal = false">
+        <div class="vox-modal" @onclick:stopPropagation="true">
+            <div class="vox-modal-title">Rename Group</div>
+            <input class="vox-modal-input" @bind="_renameValue" @bind:event="oninput"
+                   @onkeydown="OnRenameKeyDown" placeholder="Group name" />
+            <div class="vox-modal-actions">
+                <button class="vox-btn" @onclick="() => _showRenameModal = false">Cancel</button>
+                <button class="vox-btn primary" @onclick="ConfirmRenameGroup">Rename</button>
+            </div>
+        </div>
+    </div>
+}
+
+@* Join via Invite modal *@
+@if (_showJoinModal)
+{
+    <div class="vox-modal-overlay" @onclick="() => _showJoinModal = false">
+        <div class="vox-modal" @onclick:stopPropagation="true">
+            <div class="vox-modal-title">Join via Invite</div>
+            <input class="vox-modal-input" @bind="_joinLink" @bind:event="oninput"
+                   @onkeydown="OnJoinKeyDown" placeholder="Paste invite link…" />
+            @if (_joinError is not null)
+            {
+                <div class="vox-modal-error">@_joinError</div>
+            }
+            <div class="vox-modal-actions">
+                <button class="vox-btn" @onclick="() => _showJoinModal = false">Cancel</button>
+                <button class="vox-btn primary" @onclick="ConfirmJoin">Join</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public EventCallback OnShowContacts { get; set; }
+    [Parameter] public EventCallback OnGroupSelected { get; set; }
+
+    private bool _contactsActive;
+    private GroupInfo? _menuGroup;
+    private int _menuY;
+
+    // Rename state
+    private bool _showRenameModal;
+    private string _renameValue = "";
+
+    // Join state
+    private bool _showJoinModal;
+    private string _joinLink = "";
+    private string? _joinError;
+
+    private void OnSelectGroup(GroupInfo group)
+    {
+        CloseMenu();
+        _contactsActive = false;
+        App.SelectGroup(group);
+        OnGroupSelected.InvokeAsync();
+    }
+
+    private void OnContactsClick()
+    {
+        _contactsActive = true;
+        OnShowContacts.InvokeAsync();
+    }
+
+    private async Task OnAddGroup()
+    {
+        _contactsActive = false;
+        await App.CreateGroupAsync($"Group {App.Groups.Count + 1}");
+        await OnGroupSelected.InvokeAsync();
+    }
+
+    private void ShowGroupMenu(GroupInfo group, MouseEventArgs e)
+    {
+        if (_menuGroup?.Id == group.Id)
+        {
+            CloseMenu();
+            return;
+        }
+        _menuGroup = group;
+        _menuY = (int)e.ClientY;
+    }
+
+    private void CloseMenu() => _menuGroup = null;
+
+    private async Task CopyInvite(GroupInfo group)
+    {
+        var link = await App.CreateInviteAsync(group.Id);
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", link);
+        }
+        catch { /* clipboard API may not be available in all WebView contexts */ }
+        CloseMenu();
+    }
+
+    private void StartRenameGroup(GroupInfo group)
+    {
+        _renameValue = group.Name;
+        _showRenameModal = true;
+        CloseMenu();
+    }
+
+    private void ConfirmRenameGroup()
+    {
+        if (!string.IsNullOrWhiteSpace(_renameValue))
+        {
+            App.RenameGroupAsync(_renameValue);
+            _showRenameModal = false;
+        }
+    }
+
+    private void OnRenameKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") ConfirmRenameGroup();
+        if (e.Key == "Escape") _showRenameModal = false;
+    }
+
+    private async Task ConfirmJoin()
+    {
+        if (string.IsNullOrWhiteSpace(_joinLink)) return;
+        _joinError = null;
+        var result = await App.JoinViaInviteAsync(_joinLink.Trim());
+        if (result.Success)
+        {
+            _showJoinModal = false;
+            _joinLink = "";
+            _contactsActive = false;
+            await OnGroupSelected.InvokeAsync();
+        }
+        else
+        {
+            _joinError = result.Error ?? "Failed to join group.";
+        }
+    }
+
+    private async Task OnJoinKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ConfirmJoin();
+        if (e.Key == "Escape") _showJoinModal = false;
+    }
+
+    private async Task LeaveGroup(GroupInfo group)
+    {
+        CloseMenu();
+        await App.LeaveGroupAsync(group.Id);
+    }
+
+    private async Task DeleteGroup(GroupInfo group)
+    {
+        CloseMenu();
+        await App.DeleteGroupAsync(group.Id);
+    }
+}

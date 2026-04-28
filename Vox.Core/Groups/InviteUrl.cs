@@ -1,26 +1,31 @@
 using System.Net;
-using System.Text;
+using Vox.Core.Crypto;
 
 namespace Vox.Core.Groups;
 
 /// <summary>
-/// vox://join/&lt;base64url(encrypted_capsule)&gt;?ep=&lt;ip:port&gt;&amp;bpk=&lt;base64url(wg_pubkey)&gt;
+/// vox://join/&lt;capsule_token&gt;?ep=&lt;ip:port&gt;&amp;bpk=&lt;base64url(wg_pubkey)&gt;
+/// The capsule_token is produced by <see cref="CapsuleCodec.Encode"/>.
 /// </summary>
 public static class InviteUrl
 {
     private const string Scheme = "vox";
     private const string Host = "join";
 
-    public static string Create(byte[] encryptedCapsule, List<BootstrapPeer> bootstrapPeers)
+    /// <summary>
+    /// Build an invite URL from a pre-encoded capsule token and bootstrap peers.
+    /// </summary>
+    /// <param name="capsuleToken">Base64URL capsule token (from <see cref="CapsuleCodec.Encode"/>).</param>
+    /// <param name="bootstrapPeers">At least one bootstrap peer.</param>
+    public static string Create(string capsuleToken, List<BootstrapPeer> bootstrapPeers)
     {
         if (bootstrapPeers is not { Count: > 0 })
             throw new ArgumentException("At least one bootstrap peer is required.", nameof(bootstrapPeers));
 
-        var capsuleB64 = Base64UrlEncode(encryptedCapsule);
         var endpoints = string.Join(",", bootstrapPeers.Select(bp => bp.Endpoint));
-        var bpk = Base64UrlEncode(bootstrapPeers[0].WireGuardPublicKey);
+        var bpk = CapsuleCodec.Base64UrlEncode(bootstrapPeers[0].WireGuardPublicKey);
 
-        return $"{Scheme}://{Host}/{capsuleB64}?ep={endpoints}&bpk={bpk}";
+        return $"{Scheme}://{Host}/{capsuleToken}?ep={endpoints}&bpk={bpk}";
     }
 
     public static ParsedInvite Parse(string url)
@@ -34,7 +39,7 @@ public static class InviteUrl
         if (queryIndex < 0)
             throw new FormatException("Missing query parameters (ep, bpk).");
 
-        var capsuleB64 = withoutScheme[..queryIndex];
+        var capsuleToken = withoutScheme[..queryIndex];
         var queryString = withoutScheme[(queryIndex + 1)..];
 
         var parameters = ParseQueryString(queryString);
@@ -44,8 +49,7 @@ public static class InviteUrl
         if (!parameters.TryGetValue("bpk", out var bpkValue) || string.IsNullOrEmpty(bpkValue))
             throw new FormatException("Missing 'bpk' parameter.");
 
-        var capsule = Base64UrlDecode(capsuleB64);
-        var bootstrapWgPubKey = Base64UrlDecode(bpkValue);
+        var bootstrapWgPubKey = CapsuleCodec.Base64UrlDecode(bpkValue);
         var endpoints = epValue.Split(',')
             .Select(ep =>
             {
@@ -63,7 +67,7 @@ public static class InviteUrl
             })
             .ToList();
 
-        return new ParsedInvite(capsule, bootstrapWgPubKey, endpoints);
+        return new ParsedInvite(capsuleToken, bootstrapWgPubKey, endpoints);
     }
 
     private static Dictionary<string, string> ParseQueryString(string query)
@@ -77,27 +81,14 @@ public static class InviteUrl
         }
         return result;
     }
-
-    private static string Base64UrlEncode(byte[] data) =>
-        Convert.ToBase64String(data)
-            .TrimEnd('=')
-            .Replace('+', '-')
-            .Replace('/', '_');
-
-    private static byte[] Base64UrlDecode(string base64Url)
-    {
-        var s = base64Url.Replace('-', '+').Replace('_', '/');
-        switch (s.Length % 4)
-        {
-            case 2: s += "=="; break;
-            case 3: s += "="; break;
-        }
-        return Convert.FromBase64String(s);
-    }
 }
 
+/// <summary>
+/// Parsed invite URL. CapsuleToken is the raw Base64URL string;
+/// decode it with <see cref="CapsuleCodec.Decode"/> using the group key.
+/// </summary>
 public sealed record ParsedInvite(
-    byte[] EncryptedCapsule,
+    string CapsuleToken,
     byte[] BootstrapWireGuardPublicKey,
     List<IPEndPoint> Endpoints
 );

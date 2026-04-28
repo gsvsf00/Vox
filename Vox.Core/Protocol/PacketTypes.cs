@@ -34,4 +34,9 @@ public static class PacketTypes
     public const byte IceCandidate = 0x53;
     public const byte GroupStateSync = 0x60;
     public const byte GroupEvent = 0x61;
+
+    // --- Contacts (vox-signaling DC) ---
+    public const byte ContactRequest = 0x70;
+    public const byte ContactAccept = 0x71;
+    public const byte ContactReject = 0x72;
 }

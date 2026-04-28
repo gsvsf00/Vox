@@ -1,0 +1,137 @@
+@using Vox.Services
+@using Vox.Chat
+@implements IDisposable
+@inject AppState App
+@inject IJSRuntime JS
+
+<div class="vox-center">
+    @if (App.SelectedGroup is not null && App.SelectedChannel is not null)
+    {
+        <div class="vox-center-header">
+            <span class="vox-channel-hash">#</span> @App.SelectedChannel.Name
+        </div>
+
+        <div class="vox-messages" id="vox-messages-container">
+            @if (App.Messages.Count == 0)
+            {
+                <div class="vox-empty">
+                    <div class="vox-empty-icon">💬</div>
+                    <div class="vox-empty-text">No messages yet. Say something!</div>
+                </div>
+            }
+            else
+            {
+                var messages = App.Messages;
+                @for (var i = 0; i < messages.Count; i++)
+                {
+                    var msg = messages[i];
+                    var isGroupStart = IsGroupStart(messages, i);
+                    var fullTime = msg.Timestamp.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss");
+
+                    @if (isGroupStart)
+                    {
+                        <div class="vox-message vox-message-head">
+                            <div class="vox-message-avatar">
+                                @msg.AuthorDisplayName[..Math.Min(2, msg.AuthorDisplayName.Length)].ToUpperInvariant()
+                            </div>
+                            <div class="vox-message-body">
+                                <div class="vox-message-header">
+                                    <span class="vox-message-author">@msg.AuthorDisplayName</span>
+                                    <span class="vox-message-time">@msg.Timestamp.LocalDateTime.ToString("HH:mm")</span>
+                                </div>
+                                <div class="vox-message-content" title="@fullTime">@msg.Content</div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="vox-message vox-message-cont" title="@fullTime">
+                            <div class="vox-message-gutter">
+                                <span class="vox-message-hover-time">@msg.Timestamp.LocalDateTime.ToString("HH:mm")</span>
+                            </div>
+                            <div class="vox-message-content">@msg.Content</div>
+                        </div>
+                    }
+                }
+            }
+        </div>
+
+        <div class="vox-input-area">
+            <div class="vox-input-wrapper">
+                <textarea rows="1"
+                          placeholder="Message #@App.SelectedChannel.Name"
+                          @bind="_draft"
+                          @bind:event="oninput"
+                          @onkeydown="OnKeyDown"></textarea>
+            </div>
+        </div>
+    }
+    else if (App.SelectedGroup is not null)
+    {
+        <div class="vox-empty">
+            <div class="vox-empty-icon">📺</div>
+            <div class="vox-empty-text">No channel selected</div>
+        </div>
+    }
+    else
+    {
+        <div class="vox-empty">
+            <div class="vox-empty-icon">👋</div>
+            <div class="vox-empty-text">Welcome to Vox</div>
+        </div>
+    }
+</div>
+
+@code {
+    private string _draft = "";
+    private int _lastMessageCount;
+
+    private static bool IsGroupStart(IReadOnlyList<ChatMessageRecord> messages, int index)
+    {
+        if (index == 0) return true;
+        var prev = messages[index - 1];
+        var curr = messages[index];
+        // Different author → new group
+        if (prev.Author != curr.Author) return true;
+        // Different minute → new group
+        var prevMin = prev.Timestamp.LocalDateTime.ToString("HH:mm");
+        var currMin = curr.Timestamp.LocalDateTime.ToString("HH:mm");
+        return prevMin != currMin;
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey && !string.IsNullOrWhiteSpace(_draft))
+        {
+            var content = _draft.Trim();
+            _draft = "";
+            await App.SendMessageAsync(content);
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        App.StateChanged += OnStateChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (App.Messages.Count != _lastMessageCount)
+        {
+            _lastMessageCount = App.Messages.Count;
+            try
+            {
+                await JS.InvokeVoidAsync("eval",
+                    "document.getElementById('vox-messages-container')?.scrollTo(0, 999999)");
+            }
+            catch { }
+        }
+    }
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        App.StateChanged -= OnStateChanged;
+    }
+}

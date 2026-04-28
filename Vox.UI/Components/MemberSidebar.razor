@@ -1,0 +1,70 @@
+@using Vox.Services
+@using Vox.Core.Identity
+@implements IDisposable
+@inject AppState App
+
+<div class="vox-members">
+    @if (App.SelectedGroup is not null)
+    {
+        var members = App.SelectedGroup.Members;
+        var onlineMembers = members.Where(m => App.GetPeerStatus(m.Id) != PeerStatus.Offline).ToList();
+        var offlineMembers = members.Where(m => App.GetPeerStatus(m.Id) == PeerStatus.Offline).ToList();
+
+        @if (onlineMembers.Count > 0)
+        {
+            <div class="vox-members-header">Online — @onlineMembers.Count</div>
+            @foreach (var member in onlineMembers)
+            {
+                <div class="vox-member-item">
+                    <div class="vox-member-avatar">
+                        @member.Username[..Math.Min(2, member.Username.Length)].ToUpperInvariant()
+                        <div class="vox-status-dot @GetStatusClass(App.GetPeerStatus(member.Id))"></div>
+                    </div>
+                    <span class="vox-member-name online">@member.Username</span>
+                </div>
+            }
+        }
+
+        @if (offlineMembers.Count > 0)
+        {
+            <div class="vox-members-header">Offline — @offlineMembers.Count</div>
+            @foreach (var member in offlineMembers)
+            {
+                <div class="vox-member-item">
+                    <div class="vox-member-avatar">
+                        @member.Username[..Math.Min(2, member.Username.Length)].ToUpperInvariant()
+                        <div class="vox-status-dot offline"></div>
+                    </div>
+                    <span class="vox-member-name">@member.Username</span>
+                </div>
+            }
+        }
+
+        @if (members.Count == 0)
+        {
+            <div class="vox-members-header">Members — 0</div>
+        }
+    }
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        App.StateChanged += OnStateChanged;
+    }
+
+    private static string GetStatusClass(PeerStatus status) => status switch
+    {
+        PeerStatus.Online => "online",
+        PeerStatus.Away => "idle",
+        PeerStatus.DoNotDisturb => "dnd",
+        _ => "offline"
+    };
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        App.StateChanged -= OnStateChanged;
+    }
+}

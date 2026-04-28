@@ -16,11 +16,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="Xunit" />
+    <ProjectReference Include="..\..\Vox.Core\Vox.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Vox.Core\Vox.Core.csproj" />
+    <Using Include="Xunit" />
   </ItemGroup>
 
 </Project>

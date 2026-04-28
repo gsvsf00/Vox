@@ -25,7 +25,7 @@ public sealed class LocalIdentity
 
     public PeerId PeerId => new(SigningPublicKey);
 
-    public string DisplayName => $"{Username}#{Discriminator:D4}";
+    public string DisplayName => Username;
 
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
 }

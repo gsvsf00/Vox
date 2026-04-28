@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
 
 	<PropertyGroup>
 		<TargetFrameworks>net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
@@ -60,15 +60,20 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <AndroidResource Remove="src\**" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+		<PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="src\Vox.Core\Vox.Core.csproj" />
-	  <ProjectReference Include="src\Vox.Network\Vox.Network.csproj" />
-	  <ProjectReference Include="src\Vox.Chat\Vox.Chat.csproj" />
-	  <ProjectReference Include="src\Vox.Voice\Vox.Voice.csproj" />
+	  <ProjectReference Include="..\Vox.Chat\Vox.Chat.csproj" />
+	  <ProjectReference Include="..\Vox.Core\Vox.Core.csproj" />
+	  <ProjectReference Include="..\Vox.Network\Vox.Network.csproj" />
+	  <ProjectReference Include="..\Vox.Voice\Vox.Voice.csproj" />
 	</ItemGroup>
 
 </Project>
